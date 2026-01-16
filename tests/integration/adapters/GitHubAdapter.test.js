@@ -199,7 +199,7 @@ describe('GitHubAdapter', () => {
       }
 
       await expect(adapter.getCommits()).rejects.toThrow(/API rate limit|rate limit exceeded/i);
-    });
+    }, 10000); // Increase timeout to 10s to account for retry delays
   });
 
   describe('getBranches', () => {
