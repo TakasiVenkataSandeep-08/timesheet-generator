@@ -54,8 +54,8 @@ class CommitAnalyzer {
           }
         }
 
-        // Try learning from branch pattern
-        const projectFromBranch = extractProjectFromBranch(branch) || learnFromBranch(branch);
+        // Try learning from branch pattern (prefer learnFromBranch for feature/* patterns)
+        const projectFromBranch = learnFromBranch(branch) || extractProjectFromBranch(branch);
         if (projectFromBranch) {
           return projectFromBranch;
         }
@@ -143,10 +143,10 @@ class CommitAnalyzer {
     const testExtensions = [
       ".test.",
       ".spec.",
-      ".test.",
-      ".spec.js",
       ".test.js",
+      ".spec.js",
       ".test.ts",
+      ".spec.ts",
     ];
     const docExtensions = [".md", ".rst", ".txt", ".adoc"];
     const configExtensions = [
@@ -160,12 +160,13 @@ class CommitAnalyzer {
 
     for (const stat of fileStats) {
       const ext = stat.filePath.toLowerCase();
-      if (frontendExtensions.some((e) => ext.includes(e))) {
+      // Check test files first (before frontend/backend)
+      if (testExtensions.some((e) => ext.includes(e))) {
+        categories.tests.push(stat.filePath);
+      } else if (frontendExtensions.some((e) => ext.includes(e))) {
         categories.frontend.push(stat.filePath);
       } else if (backendExtensions.some((e) => ext.includes(e))) {
         categories.backend.push(stat.filePath);
-      } else if (testExtensions.some((e) => ext.includes(e))) {
-        categories.tests.push(stat.filePath);
       } else if (docExtensions.some((e) => ext.includes(e))) {
         categories.docs.push(stat.filePath);
       } else if (configExtensions.some((e) => ext.includes(e))) {

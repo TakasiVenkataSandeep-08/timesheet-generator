@@ -7,7 +7,7 @@
 
 **Best-in-class automated timesheet generation from git commits with intelligent time estimation**
 
-> 🚀 **Zero-config, plug-and-play timesheet automation for lazy developers**
+> 🚀 **Zero-config, plug-and-play timesheet automation**
 
 ## 🚀 Features
 

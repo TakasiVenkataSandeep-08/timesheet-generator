@@ -2,52 +2,78 @@
     "name": "timesheet-generator",
     "version": "0.0.1",
     "description": "Best-in-class automated timesheet generation from git commits with intelligent time estimation",
+    "type": "commonjs",
     "main": "./src/index.js",
+    "exports": {
+        ".": {
+            "require": "./src/index.js",
+            "import": "./src/index.js",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
+    },
     "bin": {
         "timesheet": "./bin/timesheet"
     },
+    "files": [
+        "src/",
+        "bin/",
+        "README.md",
+        "LICENSE",
+        "CHANGELOG.md",
+        ".timesheetrc.example"
+    ],
     "scripts": {
+        "start": "node ./bin/timesheet",
         "start-cli": "node ./bin/timesheet",
         "test": "jest",
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
-        "prepublishOnly": "npm test"
+        "test:ci": "jest --ci --coverage --maxWorkers=2",
+        "prepublishOnly": "npm run test:ci",
+        "prepare": "node -e \"require('fs').existsSync('.git/hooks') || require('child_process').execSync('git init', {stdio:'ignore'})\"",
+        "version": "node -e \"console.log(require('./package.json').version)\""
     },
     "keywords": [
         "git",
         "commits",
         "timesheet",
         "time-tracking",
+        "time-tracking-automation",
         "automation",
         "jira",
         "linear",
+        "toggl",
+        "clockify",
         "vcs",
         "github",
         "gitlab",
+        "git-commits",
+        "work-log",
         "timesheet-generator",
         "timesheet-generator-cli",
-        "timesheet-generator-mcp-server"
+        "timesheet-generator-mcp-server",
+        "mcp-server",
+        "model-context-protocol"
     ],
-    "author": "Takasi Venkata Sandeep <takasivenkatasandeep@gmail.com>",
+    "author": {
+        "name": "Takasi Venkata Sandeep",
+        "email": "takasivenkatasandeep@gmail.com"
+    },
     "license": "MIT",
     "engines": {
-        "node": ">=18.0.0"
+        "node": ">=18.0.0",
+        "npm": ">=9.0.0"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/TakasiVenkataSandeep-08/timesheet-generator.git"
+        "url": "https://github.com/TakasiVenkataSandeep-08/timesheet-generator.git",
+        "directory": "."
     },
     "bugs": {
         "url": "https://github.com/TakasiVenkataSandeep-08/timesheet-generator/issues"
     },
     "homepage": "https://github.com/TakasiVenkataSandeep-08/timesheet-generator#readme",
-    "files": [
-        "src/",
-        "bin/",
-        "README.md",
-        "LICENSE",
-        ".timesheetrc.example"
-    ],
     "dependencies": {
         "@linear/sdk": "^70.0.0",
         "@modelcontextprotocol/sdk": "^1.25.2",
@@ -62,5 +88,6 @@
     "devDependencies": {
         "@jest/globals": "^30.2.0",
         "jest": "^30.2.0"
-    }
+    },
+    "sideEffects": false
 }

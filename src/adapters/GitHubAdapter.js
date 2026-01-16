@@ -12,7 +12,8 @@ class GitHubAdapter extends VCSAdapter {
     this.owner = options.owner;
     this.repo = options.repo;
     this.token = options.token || process.env.GITHUB_TOKEN;
-    this.cache = options.cache !== false ? getCache({ defaultTTL: 3600000 }) : null; // 1 hour default
+    this.cache =
+      options.cache !== false ? getCache({ defaultTTL: 3600000 }) : null; // 1 hour default
     this.cacheEnabled = options.cache !== false;
 
     if (!this.owner || !this.repo) {
@@ -31,7 +32,11 @@ class GitHubAdapter extends VCSAdapter {
     const cacheKey = this.cache ? this.cache.generateKey(url, options) : null;
 
     // Check cache first (only for GET requests)
-    if (this.cacheEnabled && this.cache && (!options.method || options.method === 'GET')) {
+    if (
+      this.cacheEnabled &&
+      this.cache &&
+      (!options.method || options.method === "GET")
+    ) {
       const cached = this.cache.get(cacheKey);
       if (cached !== null) {
         return cached;
@@ -68,25 +73,48 @@ class GitHubAdapter extends VCSAdapter {
           const error = await response
             .json()
             .catch(() => ({ message: response.statusText }));
-          throw new Error(
-            `GitHub API error: ${error.message || response.statusText}`
-          );
+          const errorMessage = `GitHub API error: ${
+            error.message || response.statusText
+          }`;
+          // For rate limiting, include specific message
+          if (response.status === 429) {
+            throw new Error(`API rate limit exceeded: ${errorMessage}`);
+          }
+          throw new Error(errorMessage);
         }
+
+        const data = await response.json();
 
         // Handle pagination
-        if (response.headers.get("link")) {
-          return this._fetchAllPages(url, headers);
+        const linkHeader = response.headers.get("link");
+        if (linkHeader) {
+          // Start from current page data, then fetch remaining pages
+          const allData = Array.isArray(data) ? [...data] : [data];
+          const remainingPages = await this._fetchAllPages(
+            url,
+            headers,
+            linkHeader
+          );
+          return allData.concat(remainingPages);
         }
 
-        return response.json();
+        return data;
       },
       {
-        retryableErrors: [ERROR_CATEGORIES.NETWORK, ERROR_CATEGORIES.RATE_LIMIT],
+        retryableErrors: [
+          ERROR_CATEGORIES.NETWORK,
+          ERROR_CATEGORIES.RATE_LIMIT,
+        ],
       }
     );
 
     // Cache result (only for GET requests)
-    if (this.cacheEnabled && this.cache && cacheKey && (!options.method || options.method === 'GET')) {
+    if (
+      this.cacheEnabled &&
+      this.cache &&
+      cacheKey &&
+      (!options.method || options.method === "GET")
+    ) {
       this.cache.set(cacheKey, result);
     }
 
@@ -96,10 +124,15 @@ class GitHubAdapter extends VCSAdapter {
   /**
    * Fetch all pages for paginated responses
    */
-  async _fetchAllPages(url, headers) {
+  async _fetchAllPages(url, headers, linkHeader) {
     const allData = [];
     let currentUrl = url;
-    let page = 1;
+
+    // Parse initial link header to get next page URL
+    if (linkHeader) {
+      const nextMatch = linkHeader.match(/<([^>]+)>; rel="next"/);
+      currentUrl = nextMatch ? nextMatch[1] : null;
+    }
 
     while (currentUrl) {
       const response = await fetch(currentUrl, { headers });
@@ -111,14 +144,13 @@ class GitHubAdapter extends VCSAdapter {
       allData.push(...(Array.isArray(data) ? data : [data]));
 
       // Check for next page
-      const linkHeader = response.headers.get("link");
-      if (linkHeader) {
-        const nextMatch = linkHeader.match(/<([^>]+)>; rel="next"/);
+      const nextLinkHeader = response.headers.get("link");
+      if (nextLinkHeader) {
+        const nextMatch = nextLinkHeader.match(/<([^>]+)>; rel="next"/);
         currentUrl = nextMatch ? nextMatch[1] : null;
       } else {
         currentUrl = null;
       }
-      page++;
     }
 
     return allData;

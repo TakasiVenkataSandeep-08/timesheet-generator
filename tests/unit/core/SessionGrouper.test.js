@@ -115,7 +115,7 @@ describe('SessionGrouper', () => {
         },
       ];
 
-      const result = grouper.groupIntoSessions(commits);
+      const result = grouper.groupIntoSessions(commits, 60); // Use 60 min gap threshold
       expect(result).toHaveLength(1);
       expect(result[0].commits[0].hash).toBe('abc123');
     });

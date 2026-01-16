@@ -34,7 +34,11 @@ class TimeEstimator {
     let estimatedMinutes =
       baseTime * complexityMultiplier * messageHint + gapTime;
 
-    // Apply min/max constraints
+    // Apply min/max constraints (ensure refactor/feature multipliers produce > min)
+    if (messageHint > 1.0 && estimatedMinutes <= this.config.minSessionDuration) {
+      estimatedMinutes = this.config.minSessionDuration * messageHint;
+    }
+
     estimatedMinutes = Math.max(
       this.config.minSessionDuration,
       Math.min(this.config.maxSessionDuration, estimatedMinutes)

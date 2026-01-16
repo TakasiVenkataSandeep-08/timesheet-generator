@@ -10,8 +10,9 @@ describe('GitLabAdapter', () => {
     adapter = new GitLabAdapter({
       projectId: '123',
       token: 'test-token',
+      cache: false, // Disable caching in tests
     });
-    fetch.mockClear();
+    fetch.mockReset(); // Reset mocks completely between tests
   });
 
   describe('constructor', () => {
@@ -78,41 +79,60 @@ describe('GitLabAdapter', () => {
     });
 
     it('should handle pagination', async () => {
-      const mockCommits = Array(50).fill(null).map((_, i) => ({
+      const mockCommitsPage1 = Array(2).fill(null).map((_, i) => ({
         id: `commit-${i}`,
         author_name: 'Test',
         author_email: 'test@example.com',
         created_at: '2024-01-01T09:00:00Z',
         message: `Commit ${i}`,
       }));
+      
+      const mockCommitsPage2 = Array(2).fill(null).map((_, i) => ({
+        id: `commit-${i + 2}`,
+        author_name: 'Test',
+        author_email: 'test@example.com',
+        created_at: '2024-01-01T09:00:00Z',
+        message: `Commit ${i + 2}`,
+      }));
 
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: {
-            get: (name) => name === 'x-total-pages' ? '2' : null,
-          },
-          json: async () => mockCommits,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: {
-            get: () => null,
-          },
-          json: async () => mockCommits,
-        });
+      // Mock initial request (page 1) - triggers _fetchAllPages
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: (name) => name === 'x-total-pages' ? '2' : null,
+        },
+        json: async () => mockCommitsPage1,
+      });
 
-      // Mock commit details calls
-      mockCommits.forEach(() => {
+      // Mock _fetchAllPages calls - it fetches all pages starting from page 1
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: (name) => name === 'x-total-pages' ? '2' : null,
+        },
+        json: async () => mockCommitsPage1,
+      });
+      
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: (name) => name === 'x-total-pages' ? '2' : null,
+        },
+        json: async () => mockCommitsPage2,
+      });
+
+      // Mock commit details calls for all commits (page 1 + page 2 = 4 commits)
+      const allCommits = [...mockCommitsPage1, ...mockCommitsPage2];
+      allCommits.forEach((commit) => {
         fetch.mockResolvedValueOnce({
           ok: true,
           headers: { get: () => null },
           json: async () => ({
-            id: 'abc123',
-            author_name: 'Test',
-            author_email: 'test@example.com',
-            created_at: '2024-01-01T09:00:00Z',
-            message: 'Test',
+            id: commit.id,
+            author_name: commit.author_name,
+            author_email: commit.author_email,
+            created_at: commit.created_at,
+            message: commit.message,
             diff: [],
           }),
         });
@@ -144,13 +164,16 @@ describe('GitLabAdapter', () => {
     });
 
     it('should handle API errors', async () => {
+      // Mock the initial request that fails
       fetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
         statusText: 'Not Found',
+        headers: { get: (name) => name === 'x-total-pages' ? '1' : null },
         json: async () => ({ message: 'Not Found' }),
       });
 
-      await expect(adapter.getCommits()).rejects.toThrow();
+      await expect(adapter.getCommits()).rejects.toThrow('GitLab API error');
     });
   });
 
@@ -163,12 +186,13 @@ describe('GitLabAdapter', () => {
 
       fetch.mockResolvedValueOnce({
         ok: true,
-        headers: { get: () => '1' },
+        headers: { get: (name) => name === 'x-total-pages' ? '1' : null },
         json: async () => mockBranches,
       });
 
       const branches = await adapter.getBranches();
       expect(branches).toEqual(['main', 'develop']);
+      expect(fetch).toHaveBeenCalled();
     });
   });
 
@@ -182,13 +206,14 @@ describe('GitLabAdapter', () => {
 
       fetch.mockResolvedValueOnce({
         ok: true,
-        headers: { get: () => null },
+        headers: { get: (name) => name === 'x-total-pages' ? '1' : null },
         json: async () => mockProject,
       });
 
       const info = await adapter.getRepoInfo();
       expect(info.name).toBe('test-project');
       expect(info.type).toBe('gitlab');
+      expect(fetch).toHaveBeenCalled();
     });
   });
 });
