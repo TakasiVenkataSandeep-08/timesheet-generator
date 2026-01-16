@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .period {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .summary-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .summary-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4A90E2;
+        }
+        .chart-container {
+            margin: 40px 0;
+            position: relative;
+            height: 300px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+        }
+        th:hover {
+            background: #e9ecef;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .filters {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .export-buttons {
+            margin: 20px 0;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: #357ABD;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .summary {
+                grid-template-columns: 1fr;
+            }
+            table {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Timesheet Dashboard</h1>
+        <div class="period" id="period"></div>
+        <div class="period" id="repository" style="font-weight: 500;"></div>
+        
+        <div class="summary">
+            <div class="summary-card">
+                <h3>Total Hours</h3>
+                <div class="value" id="totalHours">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Sessions</h3>
+                <div class="value" id="totalSessions">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Commits</h3>
+                <div class="value" id="totalCommits">0</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="timeChart"></canvas>
+        </div>
+
+        <div class="filters">
+            <input type="text" class="filter-input" id="dateFilter" placeholder="Filter by date...">
+            <input type="text" class="filter-input" id="projectFilter" placeholder="Filter by project...">
+            <input type="text" class="filter-input" id="ticketFilter" placeholder="Filter by ticket...">
+        </div>
+
+        <div class="export-buttons">
+            <button class="btn" onclick="exportCSV()">Export CSV</button>
+            <button class="btn" onclick="exportPDF()">Export PDF</button>
+        </div>
+
+        <table id="sessionsTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">Date</th>
+                    <th onclick="sortTable(1)">Start Time</th>
+                    <th onclick="sortTable(2)">End Time</th>
+                    <th onclick="sortTable(3)">Duration</th>
+                    <th onclick="sortTable(4)">Commits</th>
+                    <th onclick="sortTable(5)">Summary</th>
+                </tr>
+            </thead>
+            <tbody id="sessionsBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Timesheet data will be injected here
+        const timesheetData = {{TIMESHEET_DATA}};
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+        });
+
+        function initializeDashboard() {
+            // Set period
+            document.getElementById('period').textContent = 
+                `Period: ${timesheetData.period.start} to ${timesheetData.period.end}`;
+            
+            // Set repository information
+            const repoElement = document.getElementById('repository');
+            if (timesheetData.repositories && timesheetData.repositories.repository) {
+                repoElement.textContent = `Repository: ${timesheetData.repositories.repository}`;
+                if (timesheetData.repositories.repoType) {
+                    repoElement.textContent += ` (${timesheetData.repositories.repoType})`;
+                }
+            } else if (timesheetData.repositories && timesheetData.repositories.repositories && timesheetData.repositories.repositories.length > 0) {
+                repoElement.textContent = `Repositories: ${timesheetData.repositories.repositories.join(", ")}`;
+            } else {
+                repoElement.style.display = 'none';
+            }
+            
+            // Set summary
+            document.getElementById('totalHours').textContent = 
+                timesheetData.totalHours.toFixed(2) + 'h';
+            document.getElementById('totalSessions').textContent = timesheetData.totalSessions;
+            document.getElementById('totalCommits').textContent = timesheetData.totalCommits;
+
+            // Create time distribution chart
+            createTimeChart();
+
+            // Populate sessions table
+            populateSessionsTable();
+        }
+
+        function createTimeChart() {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            const dates = Object.keys(timesheetData.byDate || {}).sort();
+            const hours = dates.map(date => {
+                const sessions = timesheetData.byDate[date];
+                return sessions.reduce((sum, s) => sum + s.duration, 0);
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Hours',
+                        data: hours,
+                        backgroundColor: '#4A90E2',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Hours'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function populateSessionsTable() {
+            const tbody = document.getElementById('sessionsBody');
+            tbody.innerHTML = '';
+
+            timesheetData.sessions.forEach(session => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${session.date}</td>
+                    <td>${formatTime(session.startTime)}</td>
+                    <td>${formatTime(session.endTime)}</td>
+                    <td>${session.duration.toFixed(2)}h</td>
+                    <td>${session.commits}</td>
+                    <td>${session.summary || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function formatTime(timeString) {
+            const date = new Date(timeString);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function sortTable(columnIndex) {
+            // Simple table sorting implementation
+            const table = document.getElementById('sessionsTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                const aText = a.cells[columnIndex].textContent.trim();
+                const bText = b.cells[columnIndex].textContent.trim();
+                return aText.localeCompare(bText);
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function exportCSV() {
+            // CSV export implementation
+            const csv = convertToCSV(timesheetData.sessions);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `timesheet-${timesheetData.period.start}-${timesheetData.period.end}.csv`;
+            a.click();
+        }
+
+        function exportPDF() {
+            window.print();
+        }
+
+        function convertToCSV(sessions) {
+            const headers = ['Date', 'Start Time', 'End Time', 'Duration', 'Commits', 'Summary'];
+            const rows = sessions.map(s => [
+                s.date,
+                formatTime(s.startTime),
+                formatTime(s.endTime),
+                s.duration.toFixed(2),
+                s.commits,
+                s.summary || ''
+            ]);
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+
+        // Filter functionality
+        document.getElementById('dateFilter').addEventListener('input', filterTable);
+        document.getElementById('projectFilter').addEventListener('input', filterTable);
+        document.getElementById('ticketFilter').addEventListener('input', filterTable);
+
+        function filterTable() {
+            const dateFilter = document.getElementById('dateFilter').value.toLowerCase();
+            const projectFilter = document.getElementById('projectFilter').value.toLowerCase();
+            const ticketFilter = document.getElementById('ticketFilter').value.toLowerCase();
+
+            const rows = document.querySelectorAll('#sessionsBody tr');
+            rows.forEach(row => {
+                const date = row.cells[0].textContent.toLowerCase();
+                const summary = row.cells[5].textContent.toLowerCase();
+                
+                const matchDate = !dateFilter || date.includes(dateFilter);
+                const matchProject = !projectFilter || summary.includes(projectFilter);
+                const matchTicket = !ticketFilter || summary.includes(ticketFilter);
+
+                row.style.display = (matchDate && matchProject && matchTicket) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
+

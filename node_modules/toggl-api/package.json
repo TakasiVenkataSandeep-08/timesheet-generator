@@ -1,0 +1,26 @@
+{
+  "name": "toggl-api",
+  "description": "Toggl API for Node.js",
+  "version": "1.0.2",
+  "main": "./lib/client.js",
+  "keywords": [
+    "api",
+    "toggl",
+    "timetracking"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/7eggs/node-toggl-api.git"
+  },
+  "dependencies": {
+    "custom-error-generator": "^7.0.0",
+    "moment": "^2.10.6",
+    "object-assign": "^4.0.1",
+    "request": "^2.67.0"
+  },
+  "devDependencies": {},
+  "author": "Alexander Makarenko <estliberitas@gmail.com>",
+  "contributors": [
+    "Mark Dickson Jr <markdicksonjr@gmail.com>"
+  ]
+}

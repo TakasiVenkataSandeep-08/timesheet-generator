@@ -1,0 +1,88 @@
+# Test files
+tests/
+*.test.js
+*.spec.js
+coverage/
+.nyc_output/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (keep README.md and LICENSE)
+docs/
+*.md
+!README.md
+CHANGELOG.md
+CONTRIBUTING.md
+
+# Config files
+.timesheetrc
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+test-outputs/
+
+# Test and development scripts
+test-all-commands.sh
+test-mcp-local.js
+use-mcp-locally.js
+test-parsing.js
+cleanup-for-deploy.sh
+
+# Development utilities
+src/analyze_current_repo.js
+
+# Examples (keep .timesheetrc.example)
+examples/
+
+# Plan files
+.cursor/
+plans/
+
+# Status files
+*_STATUS.md
+*_COMPLETE.md
+*_PLAN.md
+ROADMAP*.md
+EXECUTIVE_SUMMARY.md
+CRITICAL_REVIEW.md
+ARCHITECTURE.md
+IMPLEMENTATION_PLAN.md
+FIX_PLAN.md
+BUGFIX*.md
+QUICK_REFERENCE.md
+QUICK_START.md
+TESTING.md
+

@@ -1,0 +1,41 @@
+{
+  "defaults": {
+    "author": "auto",
+    "dateRange": "last-week",
+    "branches": "all",
+    "excludeMerges": true,
+    "workHours": {
+      "start": "09:00",
+      "end": "17:00",
+      "timezone": "auto"
+    },
+    "excludeWeekends": true,
+    "excludeHolidays": false
+  },
+  "timeEstimation": {
+    "method": "intelligent",
+    "gapThreshold": 30,
+    "minSessionDuration": 15,
+    "maxSessionDuration": 480,
+    "baseTimePerCommit": 10
+  },
+  "output": {
+    "format": "json",
+    "includeStats": true,
+    "includeFileChanges": true,
+    "groupBy": "day"
+  },
+  "projects": {
+    "frontend": {
+      "branches": ["feature/frontend/*", "bugfix/frontend/*"],
+      "files": ["src/frontend/**", "src/components/**"],
+      "keywords": ["ui", "component", "react", "vue"]
+    },
+    "backend": {
+      "branches": ["feature/backend/*", "bugfix/backend/*"],
+      "files": ["src/backend/**", "src/api/**"],
+      "keywords": ["api", "server", "endpoint"]
+    }
+  }
+}
+
