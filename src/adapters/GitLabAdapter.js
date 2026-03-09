@@ -12,7 +12,8 @@ class GitLabAdapter extends VCSAdapter {
     this.projectId = options.projectId;
     this.baseUrl = options.baseUrl || "https://gitlab.com";
     this.token = options.token || process.env.GITLAB_TOKEN;
-    this.cache = options.cache !== false ? getCache({ defaultTTL: 3600000 }) : null; // 1 hour default
+    this.cache =
+      options.cache !== false ? getCache({ defaultTTL: 3600000 }) : null; // 1 hour default
     this.cacheEnabled = options.cache !== false;
 
     if (!this.projectId) {
@@ -30,7 +31,11 @@ class GitLabAdapter extends VCSAdapter {
     const cacheKey = this.cache ? this.cache.generateKey(url, options) : null;
 
     // Check cache first (only for GET requests)
-    if (this.cacheEnabled && this.cache && (!options.method || options.method === 'GET')) {
+    if (
+      this.cacheEnabled &&
+      this.cache &&
+      (!options.method || options.method === "GET")
+    ) {
       const cached = this.cache.get(cacheKey);
       if (cached !== null) {
         return cached;
@@ -56,16 +61,20 @@ class GitLabAdapter extends VCSAdapter {
             const retryAfter = response.headers.get("retry-after");
             if (retryAfter) {
               await new Promise((resolve) =>
-                setTimeout(resolve, parseInt(retryAfter) * 1000)
+                setTimeout(resolve, parseInt(retryAfter) * 1000),
               );
             }
             throw new Error(
-              `GitLab API rate limit exceeded. Status: ${response.status}`
+              `GitLab API rate limit exceeded. Status: ${response.status}`,
             );
           }
 
-          const error = await response.json().catch(() => ({ message: response.statusText }));
-          throw new Error(`GitLab API error: ${error.message || response.statusText}`);
+          const error = await response
+            .json()
+            .catch(() => ({ message: response.statusText }));
+          throw new Error(
+            `GitLab API error: ${error.message || response.statusText}`,
+          );
         }
 
         // Handle pagination
@@ -77,12 +86,20 @@ class GitLabAdapter extends VCSAdapter {
         return response.json();
       },
       {
-        retryableErrors: [ERROR_CATEGORIES.NETWORK, ERROR_CATEGORIES.RATE_LIMIT],
-      }
+        retryableErrors: [
+          ERROR_CATEGORIES.NETWORK,
+          ERROR_CATEGORIES.RATE_LIMIT,
+        ],
+      },
     );
 
     // Cache result (only for GET requests)
-    if (this.cacheEnabled && this.cache && cacheKey && (!options.method || options.method === 'GET')) {
+    if (
+      this.cacheEnabled &&
+      this.cache &&
+      cacheKey &&
+      (!options.method || options.method === "GET")
+    ) {
       this.cache.set(cacheKey, result);
     }
 
@@ -112,6 +129,38 @@ class GitLabAdapter extends VCSAdapter {
   }
 
   async getCommits(options = {}) {
+    // Handle single branch case (existing logic)
+    if (!options.branches || options.branches.length <= 1) {
+      return this._getCommitsFromSingleBranch(options);
+    }
+
+    // Multi-branch: parallel fetching with deduplication
+    const branchPromises = options.branches.map((branch) =>
+      this._getCommitsFromSingleBranch({
+        ...options,
+        branches: [branch],
+      }).catch((error) => {
+        if (process.env.DEBUG) {
+          console.warn(
+            `Failed to fetch commits from branch ${branch}:`,
+            error.message,
+          );
+        }
+        return [];
+      }),
+    );
+
+    const allBranchCommits = await Promise.all(branchPromises);
+    const allCommits = allBranchCommits.flat();
+
+    // Deduplicate by hash (same commit can exist on multiple branches)
+    return this._deduplicateByHash(allCommits);
+  }
+
+  /**
+   * Get commits from a single branch (original logic)
+   */
+  async _getCommitsFromSingleBranch(options = {}) {
     const commits = [];
     let page = 1;
     const perPage = 100;
@@ -172,7 +221,9 @@ class GitLabAdapter extends VCSAdapter {
     let filteredCommits = commits;
 
     if (options.noMerges) {
-      filteredCommits = filteredCommits.filter((c) => !c.message.startsWith("Merge"));
+      filteredCommits = filteredCommits.filter(
+        (c) => !c.message.startsWith("Merge"),
+      );
     }
 
     if (options.maxCount) {
@@ -188,12 +239,12 @@ class GitLabAdapter extends VCSAdapter {
   async _getCommitDetails(sha) {
     try {
       const commit = await this._request(
-        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}`
+        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}`,
       );
-      
+
       // Get diff stats
       const diff = await this._request(
-        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}/diff`
+        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}/diff`,
       ).catch(() => []);
 
       return {
@@ -203,7 +254,7 @@ class GitLabAdapter extends VCSAdapter {
     } catch (error) {
       // Fallback to basic commit info
       return await this._request(
-        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}`
+        `/projects/${encodeURIComponent(this.projectId)}/repository/commits/${sha}`,
       );
     }
   }
@@ -242,7 +293,7 @@ class GitLabAdapter extends VCSAdapter {
   async getBranches() {
     try {
       const branches = await this._request(
-        `/projects/${encodeURIComponent(this.projectId)}/repository/branches`
+        `/projects/${encodeURIComponent(this.projectId)}/repository/branches`,
       );
       return branches.map((branch) => branch.name);
     } catch (error) {
@@ -253,7 +304,7 @@ class GitLabAdapter extends VCSAdapter {
   async getRepoInfo() {
     try {
       const project = await this._request(
-        `/projects/${encodeURIComponent(this.projectId)}`
+        `/projects/${encodeURIComponent(this.projectId)}`,
       );
       return {
         path: project.path_with_namespace,
@@ -269,4 +320,3 @@ class GitLabAdapter extends VCSAdapter {
 }
 
 module.exports = GitLabAdapter;
-

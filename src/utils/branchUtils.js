@@ -1,7 +1,7 @@
 /**
- * Check if branch name matches pattern
+ * Check if branch name matches pattern with full glob support
  * @param {string} branchName - Branch name
- * @param {string} pattern - Pattern (e.g., "feature/*", "bugfix/*")
+ * @param {string} pattern - Pattern (e.g., "feature/*", "bugfix/*", "!release/*")
  * @returns {boolean}
  */
 function matchesPattern(branchName, pattern) {
@@ -9,30 +9,52 @@ function matchesPattern(branchName, pattern) {
     return true;
   }
 
-  // Convert glob pattern to regex
-  const regexPattern = pattern
-    .replace(/\*/g, ".*")
-    .replace(/\?/g, ".");
-  const regex = new RegExp(`^${regexPattern}$`);
+  // Convert glob pattern to regex with full feature support
+  let regexPattern = pattern
+    .replace(/\*\*/g, ".*") // ** matches any characters including /
+    .replace(/\*/g, "[^/]*") // * matches any characters except /
+    .replace(/\?/g, ".") // ? matches any single character
+    .replace(/\[([^\]]+)\]/g, "[$1]") // Character classes
+    .replace(/\(([^|]+(?:\|[^|]+)*)\)/g, "($1)"); // Groups
 
+  // Handle numeric ranges {1,3}
+  regexPattern = regexPattern.replace(/\{(\d+),(\d+)\}/g, "{$1,$2}");
+
+  const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(branchName);
 }
 
 /**
- * Filter branches by pattern
+ * Filter branches by pattern with negation support
  * @param {string[]} branches - List of branch names
- * @param {string|string[]} pattern - Pattern(s) to match
+ * @param {string|string[]} patterns - Pattern(s) to match
  * @returns {string[]}
  */
-function filterBranches(branches, pattern) {
-  if (!pattern || pattern === "all") {
+function filterBranches(branches, patterns) {
+  if (!patterns || patterns === "all") {
     return branches;
   }
 
-  const patterns = Array.isArray(pattern) ? pattern : [pattern];
-  return branches.filter((branch) =>
-    patterns.some((p) => matchesPattern(branch, p))
-  );
+  const patternList = Array.isArray(patterns) ? patterns : [patterns];
+  const includePatterns = [];
+  const excludePatterns = [];
+
+  patternList.forEach((pattern) => {
+    if (pattern.startsWith("!")) {
+      excludePatterns.push(pattern.slice(1));
+    } else {
+      includePatterns.push(pattern);
+    }
+  });
+
+  return branches.filter((branch) => {
+    const included =
+      includePatterns.length === 0 ||
+      includePatterns.some((p) => matchesPattern(branch, p));
+    const excluded = excludePatterns.some((p) => matchesPattern(branch, p));
+
+    return included && !excluded;
+  });
 }
 
 /**
@@ -64,4 +86,3 @@ module.exports = {
   filterBranches,
   extractProjectFromBranch,
 };
-

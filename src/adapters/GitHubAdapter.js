@@ -62,11 +62,11 @@ class GitHubAdapter extends VCSAdapter {
             const retryAfter = response.headers.get("retry-after");
             if (retryAfter) {
               await new Promise((resolve) =>
-                setTimeout(resolve, parseInt(retryAfter) * 1000)
+                setTimeout(resolve, parseInt(retryAfter) * 1000),
               );
             }
             throw new Error(
-              `GitHub API rate limit exceeded. Status: ${response.status}`
+              `GitHub API rate limit exceeded. Status: ${response.status}`,
             );
           }
 
@@ -93,7 +93,7 @@ class GitHubAdapter extends VCSAdapter {
           const remainingPages = await this._fetchAllPages(
             url,
             headers,
-            linkHeader
+            linkHeader,
           );
           return allData.concat(remainingPages);
         }
@@ -105,7 +105,7 @@ class GitHubAdapter extends VCSAdapter {
           ERROR_CATEGORIES.NETWORK,
           ERROR_CATEGORIES.RATE_LIMIT,
         ],
-      }
+      },
     );
 
     // Cache result (only for GET requests)
@@ -157,6 +157,38 @@ class GitHubAdapter extends VCSAdapter {
   }
 
   async getCommits(options = {}) {
+    // Handle single branch case (existing logic)
+    if (!options.branches || options.branches.length <= 1) {
+      return this._getCommitsFromSingleBranch(options);
+    }
+
+    // Multi-branch: parallel fetching with deduplication
+    const branchPromises = options.branches.map((branch) =>
+      this._getCommitsFromSingleBranch({
+        ...options,
+        branches: [branch],
+      }).catch((error) => {
+        if (process.env.DEBUG) {
+          console.warn(
+            `Failed to fetch commits from branch ${branch}:`,
+            error.message,
+          );
+        }
+        return [];
+      }),
+    );
+
+    const allBranchCommits = await Promise.all(branchPromises);
+    const allCommits = allBranchCommits.flat();
+
+    // Deduplicate by hash (same commit can exist on multiple branches)
+    return this._deduplicateByHash(allCommits);
+  }
+
+  /**
+   * Get commits from a single branch (original logic)
+   */
+  async _getCommitsFromSingleBranch(options = {}) {
     const commits = [];
     let page = 1;
     const perPage = 100;
@@ -218,7 +250,7 @@ class GitHubAdapter extends VCSAdapter {
 
     if (options.noMerges) {
       filteredCommits = filteredCommits.filter(
-        (c) => !c.message.startsWith("Merge")
+        (c) => !c.message.startsWith("Merge"),
       );
     }
 
@@ -235,12 +267,12 @@ class GitHubAdapter extends VCSAdapter {
   async _getCommitDetails(sha) {
     try {
       return await this._request(
-        `/repos/${this.owner}/${this.repo}/commits/${sha}`
+        `/repos/${this.owner}/${this.repo}/commits/${sha}`,
       );
     } catch (error) {
       // Fallback to basic commit info if detailed fetch fails
       return await this._request(
-        `/repos/${this.owner}/${this.repo}/commits/${sha}`
+        `/repos/${this.owner}/${this.repo}/commits/${sha}`,
       );
     }
   }
@@ -282,7 +314,7 @@ class GitHubAdapter extends VCSAdapter {
   async getBranches() {
     try {
       const branches = await this._request(
-        `/repos/${this.owner}/${this.repo}/branches`
+        `/repos/${this.owner}/${this.repo}/branches`,
       );
       return branches.map((branch) => branch.name);
     } catch (error) {

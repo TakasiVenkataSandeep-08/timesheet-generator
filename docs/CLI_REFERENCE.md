@@ -37,13 +37,35 @@ timesheet generate --since 2024-01-01 --until 2024-01-31
 # Single branch
 timesheet generate --branch main
 
-# Branch pattern (glob)
+# Branch pattern (glob with full support)
 timesheet generate --branch "feature/*"
 timesheet generate --branch "bugfix/**"
+timesheet generate --branch "release/v[0-9]*"
+timesheet generate --branch "(feature|bugfix)/*"
 
-# All branches
+# Multiple patterns with negation
+timesheet generate --branch "feature/*" --branch "!feature/prod"
+
+# All branches (comprehensive search across all branches)
 timesheet generate --all-branches
 ```
+
+**Branch Pattern Features:**
+
+- `*` - matches any characters except `/`
+- `**` - matches any characters including `/`
+- `?` - matches any single character
+- `[abc]` - character classes
+- `(a|b)` - groups
+- `{1,3}` - numeric ranges
+- `!pattern` - negation (exclude pattern)
+
+**--all-branches Behavior:**
+
+- **Local repositories**: Searches across ALL branches using git glob patterns
+- **GitHub/GitLab**: Fetches commits from all branches in parallel with proper deduplication
+- **Performance**: Uses caching and parallel processing for optimal speed
+- **Deduplication**: Same commits across branches are merged with branch information
 
 #### Author Filtering
 
@@ -159,12 +181,14 @@ timesheet config
 ```
 
 **What it does:**
+
 - Prompts for all configuration options
 - Creates `.timesheetrc` in current directory or home directory
 - Validates configuration before saving
 - Shows current configuration values
 
 **Example flow:**
+
 ```
 ? Default date range: (Use arrow keys)
   > last-week
@@ -193,6 +217,7 @@ timesheet validate --repo /path/to/repo
 ```
 
 **What it checks:**
+
 - Git repository validity
 - Configuration file format
 - Date range validity
@@ -201,6 +226,7 @@ timesheet validate --repo /path/to/repo
 - Output format support
 
 **Output:**
+
 ```
 ✓ Git repository found
 ✓ Configuration loaded
@@ -220,6 +246,7 @@ timesheet mcp-server
 ```
 
 **Usage:**
+
 - Used by AI tools (Claude Desktop, Cursor) to integrate timesheet generation
 - Communicates via stdio
 - See [MCP Integration Guide](MCP_INTEGRATION.md) for setup
@@ -470,6 +497,7 @@ mail -s "Weekly Timesheet" team@example.com < weekly.md
 ### Common Errors
 
 **No commits found:**
+
 ```bash
 # Check date range
 timesheet generate --since 2024-01-01 --until 2024-01-31
@@ -482,6 +510,7 @@ DEBUG=1 timesheet generate
 ```
 
 **API authentication failed:**
+
 ```bash
 # Verify token
 echo $GITHUB_TOKEN
@@ -491,6 +520,7 @@ timesheet generate --github owner/repo --token $GITHUB_TOKEN
 ```
 
 **Invalid date:**
+
 ```bash
 # Use proper format: YYYY-MM-DD
 timesheet generate --since 2024-01-01 --until 2024-01-31
@@ -506,4 +536,3 @@ timesheet generate --since 2024-01-01 --until 2024-01-31
 - [MCP Integration](MCP_INTEGRATION.md) - AI tool integration
 - [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
 - [FAQ](FAQ.md) - Frequently asked questions
-

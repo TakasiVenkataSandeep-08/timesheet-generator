@@ -5,7 +5,9 @@
 function normalizeCommit(commit) {
   if (!commit || !commit.hash) {
     if (process.env.DEBUG) {
-      console.warn(`DEBUG normalizeCommit: Skipping commit - missing commit or hash`);
+      console.warn(
+        `DEBUG normalizeCommit: Skipping commit - missing commit or hash`,
+      );
     }
     return null; // Invalid commit, skip
   }
@@ -13,7 +15,10 @@ function normalizeCommit(commit) {
   let date;
   if (commit.date instanceof Date) {
     date = commit.date;
-  } else if (typeof commit.date === 'string' || typeof commit.date === 'number') {
+  } else if (
+    typeof commit.date === "string" ||
+    typeof commit.date === "number"
+  ) {
     date = new Date(commit.date);
   } else {
     // Try to parse as string if it's not a recognized type
@@ -23,7 +28,9 @@ function normalizeCommit(commit) {
   // Validate date - if still invalid, return null (will be filtered out)
   if (isNaN(date.getTime())) {
     if (process.env.DEBUG) {
-      console.warn(`DEBUG normalizeCommit: Skipping commit ${commit.hash.substring(0, 7)} - invalid date: ${commit.date} (parsed as: ${date})`);
+      console.warn(
+        `DEBUG normalizeCommit: Skipping commit ${commit.hash.substring(0, 7)} - invalid date: ${commit.date} (parsed as: ${date})`,
+      );
     }
     return null; // Invalid date, skip this commit
   }
@@ -51,17 +58,20 @@ function sortCommitsByDate(commits) {
 }
 
 /**
- * Deduplicate commits by hash
+ * Deduplicate commits by hash with improved memory efficiency
  */
 function deduplicateCommits(commits) {
   const seen = new Set();
-  return commits.filter((commit) => {
-    if (seen.has(commit.hash)) {
-      return false;
+  const result = [];
+
+  for (const commit of commits) {
+    if (!seen.has(commit.hash)) {
+      seen.add(commit.hash);
+      result.push(commit);
     }
-    seen.add(commit.hash);
-    return true;
-  });
+  }
+
+  return result;
 }
 
 module.exports = {
@@ -69,4 +79,3 @@ module.exports = {
   sortCommitsByDate,
   deduplicateCommits,
 };
-

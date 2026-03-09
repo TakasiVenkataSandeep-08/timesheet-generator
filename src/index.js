@@ -61,14 +61,14 @@ function getCommits(options) {
 
     exec(
       `${quoteForGit(
-        gitExecutable
+        gitExecutable,
       )} -C "${repoPath}" rev-parse --is-inside-work-tree`,
       (error, stdout, stderr) => {
         if (error || stdout.trim() !== "true") {
           return reject(
             `The provided path "${repoPath}" is not a valid Git repository. Error: ${
               stderr.trim() || error?.message
-            }`
+            }`,
           );
         }
 
@@ -112,7 +112,15 @@ function getCommits(options) {
           gitArgs.push(`--grep=${quoteForGit(grep)}`);
         }
         if (branches && branches.length > 0) {
-          gitArgs.push(...branches.map(quoteForGit));
+          if (branches.length === 1) {
+            gitArgs.push(quoteForGit(branches[0]));
+          } else {
+            // Use --glob pattern for multiple branches
+            const branchPatterns = branches
+              .map((b) => `refs/heads/${b}`)
+              .join(",");
+            gitArgs.push(`--glob={${branchPatterns}}`);
+          }
         }
         if (maxCount !== undefined && maxCount > 0) {
           gitArgs.push(`--max-count=${maxCount}`);
@@ -151,7 +159,7 @@ function getCommits(options) {
             return reject(
               `Failed to execute git log command. Error: ${
                 stderrData.trim() || `Process exited with code ${code}`
-              }`
+              }`,
             );
           }
 
@@ -166,7 +174,7 @@ function getCommits(options) {
 
           if (process.env.DEBUG) {
             console.warn(
-              `DEBUG: Found ${rawCommits.length} raw commit blocks from git log`
+              `DEBUG: Found ${rawCommits.length} raw commit blocks from git log`,
             );
           }
 
@@ -181,7 +189,7 @@ function getCommits(options) {
               skippedCount++;
               if (process.env.DEBUG) {
                 console.warn(
-                  `DEBUG: Skipping malformed commit ${skippedCount} - only ${lines.length} lines`
+                  `DEBUG: Skipping malformed commit ${skippedCount} - only ${lines.length} lines`,
                 );
                 console.warn(`DEBUG: First few lines:`, lines.slice(0, 3));
               }
@@ -211,8 +219,8 @@ function getCommits(options) {
                     console.warn(
                       `DEBUG: Line ${i} doesn't look like a hash, skipping commit: "${trimmed.substring(
                         0,
-                        50
-                      )}"`
+                        50,
+                      )}"`,
                     );
                   }
                   break; // Skip this commit block
@@ -228,8 +236,8 @@ function getCommits(options) {
                     console.warn(
                       `DEBUG: Line ${i} doesn't look like a date, skipping commit: "${trimmed.substring(
                         0,
-                        50
-                      )}"`
+                        50,
+                      )}"`,
                     );
                   }
                   break; // Skip this commit block
@@ -245,7 +253,7 @@ function getCommits(options) {
               skippedCount++;
               if (process.env.DEBUG) {
                 console.warn(
-                  `DEBUG: Skipping commit ${skippedCount} - not enough valid fields found: ${fields.length}`
+                  `DEBUG: Skipping commit ${skippedCount} - not enough valid fields found: ${fields.length}`,
                 );
                 console.warn(`DEBUG: Fields found:`, fields);
                 console.warn(`DEBUG: First 10 lines:`, lines.slice(0, 10));
@@ -360,8 +368,8 @@ function getCommits(options) {
               console.warn(
                 `Warning: Empty date string for commit ${hash.substring(
                   0,
-                  7
-                )}, skipping`
+                  7,
+                )}, skipping`,
               );
               continue;
             }
@@ -371,8 +379,8 @@ function getCommits(options) {
               console.warn(
                 `Warning: Invalid date string "${dateString}" for commit ${hash.substring(
                   0,
-                  7
-                )}, skipping`
+                  7,
+                )}, skipping`,
               );
               continue;
             }
@@ -382,7 +390,7 @@ function getCommits(options) {
             const branchesArray = branchesStr
               .split(", ")
               .filter(
-                (b) => b.startsWith("HEAD ->") || b.startsWith("refs/heads/")
+                (b) => b.startsWith("HEAD ->") || b.startsWith("refs/heads/"),
               )
               .map((b) => b.replace(/(HEAD -> |refs\/heads\/)/, "").trim());
 
@@ -400,7 +408,7 @@ function getCommits(options) {
 
           if (process.env.DEBUG) {
             console.warn(
-              `DEBUG: Parsed ${commits.length} valid commits, skipped ${skippedCount} invalid commits`
+              `DEBUG: Parsed ${commits.length} valid commits, skipped ${skippedCount} invalid commits`,
             );
           }
 
@@ -411,7 +419,7 @@ function getCommits(options) {
           console.error("Failed to start git process.", err);
           reject(`Failed to start git process: ${err.message}`);
         });
-      }
+      },
     );
   });
 }

@@ -28,7 +28,7 @@ program
   .option("--until <date>", "End date (YYYY-MM-DD)")
   .option(
     "--date-range <range>",
-    "Date range (last-week, this-week, last-month, this-month)"
+    "Date range (last-week, this-week, last-month, this-month)",
   )
   .option("--branch <branch>", "Branch name or pattern (e.g., 'feature/*')")
   .option("--all-branches", "Include all branches")
@@ -36,7 +36,7 @@ program
   .option(
     "--format <format>",
     "Output format (json, csv, markdown, jira, simple, pdf, html)",
-    "json"
+    "json",
   )
   .option("--simple", "Alias for --format simple (no-nonsense mode)")
   .option("--output <file>", "Output file path")
@@ -44,19 +44,19 @@ program
   .option("--github <owner/repo>", "GitHub repository (e.g., 'owner/repo')")
   .option(
     "--gitlab <project-id>",
-    "GitLab project ID or path (e.g., 'owner/repo')"
+    "GitLab project ID or path (e.g., 'owner/repo')",
   )
   .option(
     "--gitlab-url <url>",
-    "GitLab instance URL (default: https://gitlab.com)"
+    "GitLab instance URL (default: https://gitlab.com)",
   )
   .option(
     "--token <token>",
-    "API token (or use GITHUB_TOKEN/GITLAB_TOKEN env var)"
+    "API token (or use GITHUB_TOKEN/GITLAB_TOKEN env var)",
   )
   .option(
     "--multi-repo <paths...>",
-    "Multiple repository paths (space-separated)"
+    "Multiple repository paths (space-separated)",
   )
   .option("--no-merges", "Exclude merge commits")
   .option("--include-stats", "Include file statistics")
@@ -230,23 +230,45 @@ program
 
           // Get branches
           let branches = null;
-          if (options.branch && !options.allBranches) {
-            const allBranches = await adapter.getBranches().catch(() => []);
-            branches = filterBranches(allBranches, options.branch);
-          } else if (
-            options.allBranches ||
-            mergedConfig.defaults.branches === "all"
-          ) {
+          try {
+            const allBranches = await adapter.getBranches();
+
+            if (options.branch && !options.allBranches) {
+              branches = filterBranches(allBranches, options.branch);
+              if (branches.length === 0) {
+                console.warn(
+                  `⚠️  No branches match pattern: ${options.branch}`,
+                );
+                console.warn(
+                  `Available branches: ${allBranches.slice(0, 10).join(", ")}${allBranches.length > 10 ? "..." : ""}`,
+                );
+              }
+            } else if (
+              options.allBranches ||
+              mergedConfig.defaults.branches === "all"
+            ) {
+              branches = allBranches.length > 0 ? allBranches : null;
+              if (!branches) {
+                console.warn(`⚠️  No branches found in repository`);
+              }
+            } else if (
+              mergedConfig.defaults.branches &&
+              mergedConfig.defaults.branches !== "all"
+            ) {
+              branches = filterBranches(
+                allBranches,
+                mergedConfig.defaults.branches,
+              );
+              if (branches.length === 0) {
+                console.warn(
+                  `⚠️  No branches match default pattern: ${mergedConfig.defaults.branches}`,
+                );
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️  Failed to fetch branches: ${error.message}`);
+            console.warn(`⚠️  Falling back to current branch only`);
             branches = null;
-          } else if (
-            mergedConfig.defaults.branches &&
-            mergedConfig.defaults.branches !== "all"
-          ) {
-            const allBranches = await adapter.getBranches().catch(() => []);
-            branches = filterBranches(
-              allBranches,
-              mergedConfig.defaults.branches
-            );
           }
 
           // Get commits
@@ -274,7 +296,7 @@ program
           itemText: "repository",
           totalText: "Fetching commits",
           showItemName: false,
-        }
+        },
       );
 
       // Collect successful results
@@ -289,7 +311,7 @@ program
         console.warn(
           `⚠️  Warning: Failed to fetch commits from ${
             repoInfo.name || repoInfo.path
-          }: ${formattedError.message}`
+          }: ${formattedError.message}`,
         );
         if (process.env.DEBUG) {
           console.error("Full error:", error);
@@ -305,14 +327,14 @@ program
         // If multi-repo and some repos failed, show summary
         if (adapters.length > 1) {
           console.log(
-            "\n💡 Tip: Some repositories may have failed. Check warnings above or run with DEBUG=1 for details."
+            "\n💡 Tip: Some repositories may have failed. Check warnings above or run with DEBUG=1 for details.",
           );
         }
         process.exit(0);
       }
 
       console.log(
-        `Found ${commits.length} commits from ${adapters.length} repository(ies).`
+        `Found ${commits.length} commits from ${adapters.length} repository(ies).`,
       );
 
       // Generate timesheet with progress indicator

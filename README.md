@@ -66,12 +66,25 @@ timesheet generate --since 2024-01-01 --until 2024-01-31
 # Single branch
 timesheet generate --branch main
 
-# Branch pattern
+# Advanced branch patterns (full glob support)
 timesheet generate --branch "feature/*"
+timesheet generate --branch "bugfix/**"
+timesheet generate --branch "release/v[0-9]*"
+timesheet generate --branch "(feature|bugfix)/*"
 
-# All branches
+# Multiple patterns with negation
+timesheet generate --branch "feature/*" --branch "!feature/prod"
+
+# All branches (comprehensive search across ALL branches)
 timesheet generate --all-branches
 ```
+
+**🎯 New: Enhanced --all-branches Support**
+
+- **Local repos**: Searches ALL branches using optimized git glob patterns
+- **GitHub/GitLab**: Parallel fetching from all branches with smart deduplication
+- **Advanced patterns**: Support for `**`, `[]`, `()`, `{}`, and negation `!pattern`
+- **Performance**: Branch caching and parallel processing for optimal speed
 
 ### Output Formats
 

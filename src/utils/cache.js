@@ -24,6 +24,13 @@ class Cache {
   }
 
   /**
+   * Generate branch-specific cache key
+   */
+  generateBranchCacheKey(adapterName, repoPath) {
+    return `branches:${adapterName}:${repoPath}`;
+  }
+
+  /**
    * Get value from cache
    */
   get(key) {
@@ -147,4 +154,3 @@ module.exports = {
   Cache,
   getCache,
 };
-

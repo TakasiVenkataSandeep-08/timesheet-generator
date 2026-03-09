@@ -38,6 +38,27 @@ class VCSAdapter {
   get name() {
     return this.constructor.name;
   }
+
+  /**
+   * Deduplicate commits by hash across branches
+   * @param {Array} commits - Array of commit objects
+   * @returns {Array} Deduplicated commits with merged branch info
+   */
+  _deduplicateByHash(commits) {
+    const seen = new Map();
+    return commits.filter((commit) => {
+      if (seen.has(commit.hash)) {
+        // Merge branch info if commit exists on multiple branches
+        const existing = seen.get(commit.hash);
+        existing.branches = [
+          ...new Set([...existing.branches, ...commit.branches]),
+        ];
+        return false;
+      }
+      seen.set(commit.hash, commit);
+      return true;
+    });
+  }
 }
 
 module.exports = VCSAdapter;

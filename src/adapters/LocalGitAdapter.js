@@ -3,6 +3,7 @@ const { getCommits: getCommitsFromGit } = require("../index");
 const { normalizeCommit } = require("../utils/commitUtils");
 const { exec } = require("child_process");
 const { promisify } = require("util");
+const { getCache } = require("../utils/cache");
 
 const execAsync = promisify(exec);
 
@@ -13,6 +14,7 @@ class LocalGitAdapter extends VCSAdapter {
   constructor(repoPath) {
     super();
     this.repoPath = repoPath || process.cwd();
+    this.cache = getCache({ defaultTTL: 1800000 }); // 30 minutes for branches
   }
 
   async getCommits(options = {}) {
@@ -36,7 +38,7 @@ class LocalGitAdapter extends VCSAdapter {
 
     if (process.env.DEBUG) {
       console.warn(
-        `DEBUG LocalGitAdapter: Got ${commits.length} raw commits from getCommitsFromGit`
+        `DEBUG LocalGitAdapter: Got ${commits.length} raw commits from getCommitsFromGit`,
       );
       if (commits.length > 0) {
         console.warn(`DEBUG LocalGitAdapter: Sample commit:`, {
@@ -56,11 +58,11 @@ class LocalGitAdapter extends VCSAdapter {
       const skipped = commits.length - valid.length;
       if (skipped > 0) {
         console.warn(
-          `DEBUG LocalGitAdapter: After normalization: ${valid.length} valid, ${skipped} filtered out`
+          `DEBUG LocalGitAdapter: After normalization: ${valid.length} valid, ${skipped} filtered out`,
         );
       } else {
         console.warn(
-          `DEBUG LocalGitAdapter: All ${valid.length} commits normalized successfully`
+          `DEBUG LocalGitAdapter: All ${valid.length} commits normalized successfully`,
         );
       }
     }
@@ -69,52 +71,60 @@ class LocalGitAdapter extends VCSAdapter {
   }
 
   async getBranches() {
-    try {
-      const { stdout } = await execAsync(
-        `git -C "${this.repoPath}" branch -r --format="%(refname:short)"`
-      );
-      const branches = stdout
-        .split("\n")
-        .map((b) => b.trim())
-        .filter(Boolean)
-        .map((b) => b.replace(/^origin\//, ""));
+    // Check cache first
+    const cacheKey = this.cache.generateBranchCacheKey(
+      this.name,
+      this.repoPath,
+    );
+    const cachedBranches = this.cache.get(cacheKey);
+    if (cachedBranches) {
+      return cachedBranches;
+    }
 
-      // Also get local branches
-      const { stdout: localBranches } = await execAsync(
-        `git -C "${this.repoPath}" branch --format="%(refname:short)"`
-      );
-      const local = localBranches
-        .split("\n")
-        .map((b) => b.trim())
-        .filter(Boolean);
+    const branches = new Set();
 
-      // Combine and deduplicate
-      const allBranches = [...new Set([...branches, ...local])];
-      return allBranches;
-    } catch (error) {
-      // Fallback to local branches only
+    // Fetch all branch types systematically
+    const branchTypes = [
+      { cmd: "branch -r", prefix: "origin/" },
+      { cmd: "branch", prefix: "" },
+      { cmd: "branch -a", prefix: "refs/heads/" },
+    ];
+
+    for (const { cmd, prefix } of branchTypes) {
       try {
         const { stdout } = await execAsync(
-          `git -C "${this.repoPath}" branch --format="%(refname:short)"`
+          `git -C "${this.repoPath}" ${cmd} --format="%(refname:short)"`,
         );
-        return stdout
+        stdout
           .split("\n")
           .map((b) => b.trim())
-          .filter(Boolean);
-      } catch (e) {
-        return [];
+          .filter(Boolean)
+          .forEach((b) => {
+            branches.add(b.replace(new RegExp(`^${prefix}`), ""));
+          });
+      } catch (error) {
+        if (process.env.DEBUG) {
+          console.warn(`Failed to fetch branches with ${cmd}:`, error.message);
+        }
       }
     }
+
+    const branchList = Array.from(branches);
+
+    // Cache the result
+    this.cache.set(cacheKey, branchList, 1800000); // 30 minutes
+
+    return branchList;
   }
 
   async getRepoInfo() {
     try {
       const { stdout: remoteUrl } = await execAsync(
-        `git -C "${this.repoPath}" config --get remote.origin.url`
+        `git -C "${this.repoPath}" config --get remote.origin.url`,
       ).catch(() => ({ stdout: "" }));
 
       const { stdout: repoName } = await execAsync(
-        `git -C "${this.repoPath}" rev-parse --show-toplevel`
+        `git -C "${this.repoPath}" rev-parse --show-toplevel`,
       ).catch(() => ({ stdout: this.repoPath }));
 
       return {
