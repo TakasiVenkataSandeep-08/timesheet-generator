@@ -9,19 +9,45 @@ function matchesPattern(branchName, pattern) {
     return true;
   }
 
-  // Convert glob pattern to regex with full feature support
-  let regexPattern = pattern
-    .replace(/\*\*/g, ".*") // ** matches any characters including /
-    .replace(/\*/g, "[^/]*") // * matches any characters except /
-    .replace(/\?/g, ".") // ? matches any single character
-    .replace(/\[([^\]]+)\]/g, "[$1]") // Character classes
-    .replace(/\(([^|]+(?:\|[^|]+)*)\)/g, "($1)"); // Groups
+  // Simple glob pattern matching for essential branch patterns
+  // Convert glob to regex step by step
+  let regexStr = "^";
 
-  // Handle numeric ranges {1,3}
-  regexPattern = regexPattern.replace(/\{(\d+),(\d+)\}/g, "{$1,$2}");
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
 
-  const regex = new RegExp(`^${regexPattern}$`);
-  return regex.test(branchName);
+    if (char === "*") {
+      // Check if this is **
+      if (i + 1 < pattern.length && pattern[i + 1] === "*") {
+        regexStr += ".*"; // ** matches any characters including /
+        i++; // Skip next *
+      } else {
+        regexStr += "[^/]*"; // * matches any characters except /
+      }
+    } else if (char === "?") {
+      regexStr += "."; // ? matches single character
+    } else {
+      // Escape special regex characters
+      if ("[.+^${}()|]".includes(char)) {
+        regexStr += "\\" + char;
+      } else {
+        regexStr += char;
+      }
+    }
+  }
+
+  regexStr += "$";
+
+  try {
+    const regex = new RegExp(regexStr);
+    return regex.test(branchName);
+  } catch (error) {
+    // If regex is invalid, fall back to simple string matching
+    console.warn(
+      `Invalid regex pattern "${regexStr}" for "${pattern}", falling back to string match`,
+    );
+    return branchName === pattern;
+  }
 }
 
 /**
@@ -76,6 +102,21 @@ function extractProjectFromBranch(branchName) {
     if (match) {
       return match[1];
     }
+  }
+
+  // Only return branch name for very common simple branch names
+  const commonBranches = [
+    "main",
+    "master",
+    "develop",
+    "dev",
+    "test",
+    "staging",
+    "production",
+    "prod",
+  ];
+  if (commonBranches.includes(branchName)) {
+    return branchName;
   }
 
   return null;

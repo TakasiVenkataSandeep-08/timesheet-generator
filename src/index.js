@@ -385,14 +385,31 @@ function getCommits(options) {
               continue;
             }
 
+            // Extract branch information from git log output
+            // When we fetch from a specific branch, we need to manually add that branch
+            let branchesArray = [];
+
+            // Try to extract branches from decoration (when --decorate is used)
             const decorateMatch = rawCommit.match(/\((.*?)\)/);
-            const branchesStr = decorateMatch ? decorateMatch[1] : "";
-            const branchesArray = branchesStr
-              .split(", ")
-              .filter(
-                (b) => b.startsWith("HEAD ->") || b.startsWith("refs/heads/"),
-              )
-              .map((b) => b.replace(/(HEAD -> |refs\/heads\/)/, "").trim());
+            if (decorateMatch) {
+              const branchesStr = decorateMatch[1];
+              branchesArray = branchesStr
+                .split(", ")
+                .filter(
+                  (b) => b.startsWith("HEAD ->") || b.startsWith("refs/heads/"),
+                )
+                .map((b) => b.replace(/(HEAD -> |refs\/heads\/)/, "").trim());
+            }
+
+            // If no branches found from decoration and we're fetching from specific branches,
+            // add the branch information manually
+            if (
+              branchesArray.length === 0 &&
+              branches &&
+              branches.length === 1
+            ) {
+              branchesArray = [branches[0]];
+            }
 
             commits.push({
               hash,
