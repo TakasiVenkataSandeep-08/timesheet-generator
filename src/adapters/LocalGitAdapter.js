@@ -87,6 +87,8 @@ class LocalGitAdapter extends VCSAdapter {
 
     // For multiple branches, fetch from each branch separately and deduplicate
     const allCommits = [];
+    const failedBranches = [];
+
     for (const branch of branches) {
       try {
         const commits = await getCommitsFromGit({
@@ -95,19 +97,23 @@ class LocalGitAdapter extends VCSAdapter {
           ...otherOptions,
         });
 
-        if (process.env.DEBUG) {
-          console.warn(
-            `DEBUG LocalGitAdapter: Got ${commits.length} commits from branch ${branch}`,
-          );
-        }
-
         allCommits.push(...commits);
       } catch (error) {
-        // For multiple branches, if one branch doesn't exist, throw an error
-        throw new Error(
-          `Branch '${branch}' does not exist in repository ${this.repoPath}`,
-        );
+        // Skip non-existing branches and continue with others
+        failedBranches.push(branch);
+        if (process.env.DEBUG) {
+          console.warn(
+            `DEBUG LocalGitAdapter: Skipping branch '${branch}' - ${error.message}`,
+          );
+        }
       }
+    }
+
+    // Log warning about skipped branches if any
+    if (failedBranches.length > 0) {
+      console.warn(
+        `Warning: Skipped ${failedBranches.length} non-existent branches: ${failedBranches.join(", ")}`,
+      );
     }
 
     if (process.env.DEBUG) {
@@ -147,7 +153,7 @@ class LocalGitAdapter extends VCSAdapter {
     return deduplicated;
   }
 
-  async getBranches() {
+  async getBranches(options = {}) {
     // Check cache first
     const cacheKey = this.cache.generateBranchCacheKey(
       this.name,
@@ -164,7 +170,6 @@ class LocalGitAdapter extends VCSAdapter {
     const branchTypes = [
       { cmd: "branch -r", prefix: "origin/" },
       { cmd: "branch", prefix: "" },
-      { cmd: "branch -a", prefix: "refs/heads/" },
     ];
 
     for (const { cmd, prefix } of branchTypes) {
@@ -177,7 +182,13 @@ class LocalGitAdapter extends VCSAdapter {
           .map((b) => b.trim())
           .filter(Boolean)
           .forEach((b) => {
-            branches.add(b.replace(new RegExp(`^${prefix}`), ""));
+            // Remove the prefix and clean up the branch name
+            let cleanBranch = b.replace(new RegExp(`^${prefix}`), "");
+            // Handle special cases like HEAD -> master
+            cleanBranch = cleanBranch.replace(/^HEAD -> /, "");
+            if (cleanBranch && !cleanBranch.includes("->")) {
+              branches.add(cleanBranch);
+            }
           });
       } catch (error) {
         if (process.env.DEBUG) {
@@ -186,12 +197,52 @@ class LocalGitAdapter extends VCSAdapter {
       }
     }
 
-    const branchList = Array.from(branches);
+    let branchList = Array.from(branches);
+
+    // If prioritizing recent branches (for --all-branches), sort by recent activity
+    if (options.prioritizeRecent) {
+      branchList = await this.sortBranchesByRecentActivity(branchList);
+
+      // Limit to a reasonable number of recent branches (default 50)
+      const maxBranches = options.maxBranches || 50;
+      if (branchList.length > maxBranches) {
+        branchList = branchList.slice(0, maxBranches);
+        if (process.env.DEBUG) {
+          console.warn(
+            `DEBUG LocalGitAdapter: Limited to ${maxBranches} most recent branches`,
+          );
+        }
+      }
+    }
 
     // Cache the result
     this.cache.set(cacheKey, branchList, 1800000); // 30 minutes
 
     return branchList;
+  }
+
+  async sortBranchesByRecentActivity(branches) {
+    const branchActivity = [];
+
+    for (const branch of branches) {
+      try {
+        // Get the date of the latest commit on each branch
+        const { stdout } = await execAsync(
+          `git -C "${this.repoPath}" log -1 --format="%ct" ${branch}`,
+          { timeout: 5000 }, // 5 second timeout per branch
+        );
+        const timestamp = parseInt(stdout.trim()) * 1000; // Convert to milliseconds
+        branchActivity.push({ branch, timestamp });
+      } catch (error) {
+        // If we can't get the commit date, put it at the end
+        branchActivity.push({ branch, timestamp: 0 });
+      }
+    }
+
+    // Sort by timestamp (most recent first)
+    branchActivity.sort((a, b) => b.timestamp - a.timestamp);
+
+    return branchActivity.map((item) => item.branch);
   }
 
   async getRepoInfo() {

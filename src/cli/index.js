@@ -231,7 +231,15 @@ program
           // Get branches
           let branches = null;
           try {
-            const allBranches = await adapter.getBranches();
+            // When using --all-branches, prioritize recent branches and limit count
+            const branchOptions = options.allBranches
+              ? {
+                  prioritizeRecent: true,
+                  maxBranches: 50, // Limit to 50 most recent branches
+                }
+              : {};
+
+            const allBranches = await adapter.getBranches(branchOptions);
 
             if (options.branch && !options.allBranches) {
               branches = filterBranches(allBranches, options.branch);
@@ -250,6 +258,10 @@ program
               branches = allBranches.length > 0 ? allBranches : null;
               if (!branches) {
                 console.warn(`⚠️  No branches found in repository`);
+              } else if (options.allBranches && allBranches.length >= 50) {
+                console.log(
+                  `ℹ️  Processing ${allBranches.length} most recent branches (limited from all available branches)`,
+                );
               }
             } else if (
               mergedConfig.defaults.branches &&
